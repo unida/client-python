@@ -8,4 +8,10 @@ setup(name='unida',
 	author_email='info@unida.io',
 	license='MIT',
 	packages=['unida'],
-	zip_safe=False)
+	zip_safe=False,
+	install_requires=[
+		"six==1.11.0",
+		"requests==2.18.4",
+		"websocket-client==0.47.0"
+	]
+)
