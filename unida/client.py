@@ -3,8 +3,12 @@ import requests
 import json
 import time
 import zlib
+from base64 import b64decode
 from random import randint
 from threading import Thread
+
+class SocketConnectionClosed(Exception):
+	pass
 
 class Unida:
 	def __init__(self, api_key):
@@ -13,6 +17,7 @@ class Unida:
 		self._rest_host = 'https://' + host
 		self._ws_host = 'wss://' + host
 		self._api_key = api_key
+		self._subscribed = False
 
 		self._message_queue = []
 
@@ -39,17 +44,32 @@ class Unida:
 		ws = websocket.WebSocketApp(self._ws_host + path, on_message=self._stream_msg_handler)
 		ws.run_forever()
 
+	def _keep_session(self, subscriptions):
+		while True:
+			try:
+				sub = self._post('/realtime/create-session/', {
+					'subscriptions': subscriptions,
+					'format': 'avro'
+				})
+			except:
+				time.sleep(1)
+				continue
+
+			path = '/realtime/{}/'.format(sub['session_id'])
+
+			self._subscribed = True
+
+			self._ws_handler(path)
+
+			time.sleep(1)
+
 	def subscribe(self, subscriptions):
-		sub = self._post('/realtime/create-session/', {
-			'subscriptions': subscriptions,
-			'format': 'avro'
-		})
-
-		path = '/realtime/{}/'.format(sub['session_id'])
-
-		t = Thread(target=self._ws_handler, args=(path, ))
+		t = Thread(target=self._keep_session, args=(subscriptions, ))
 		t.deamonize = True
 		t.start()
+
+		while not self._subscribed:
+			time.sleep(0.1)
 
 	def stream_receive(self, blocking=True):
 		while True:
@@ -62,3 +82,17 @@ class Unida:
 
 	def current_book(self, exchange, symbol):
 		return self._get('/current/{}/{}/{}/'.format(exchange, 'book', symbol.replace('/', '_')))
+
+	def history(self, entity, exchange, symbol, since, to):
+		if entity == 'book':
+			entity = 'books'
+
+		symbol = symbol.replace('/', '_')
+		history = self._get('/history/{}/{}/{}/{}/{}/'.format(entity, exchange, symbol, since, to))
+
+		if entity:
+			for i in range(len(history)):
+				history[i]['asks'] = zlib.decompress(b64decode(history[i]['asks']))
+				history[i]['bids'] = zlib.decompress(b64decode(history[i]['bids']))
+
+		return history
