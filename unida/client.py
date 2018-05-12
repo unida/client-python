@@ -7,7 +7,7 @@ from base64 import b64decode
 from random import randint
 from threading import Thread
 
-class SocketConnectionClosed(Exception):
+class RateLimitExceeded(Exception):
 	pass
 
 class Unida:
@@ -21,21 +21,39 @@ class Unida:
 
 		self._message_queue = []
 
+	def _handle_http_error(self, code, msg):
+		if code == 401:
+			msg = json.loads(msg)
+			if 'Rate limit reached' in msg['error']:
+				raise RateLimitExceeded(msg['error'])
+			else:
+				raise Exception('Unknown error occured.')
+
 	def _post(self, path, payload):
 		# payload['api_key'] = self._api_key
 
 		r = requests.post(self._rest_host + path, data=json.dumps(payload), headers={
-			'X-Api-Key': self._api_key
+			'x-api-key': self._api_key
 		})
 
-		return json.loads(r.text)
+		if r.status_code != 200:
+			self._handle_http_error(r.status_code, r.text)
+
+		msg = json.loads(r.text)
+
+		return msg
 
 	def _get(self, path):
 		r = requests.get(self._rest_host + path, headers={
-			'X-Api-Key': self._api_key
+			'x-api-key': self._api_key
 		})
 
-		return json.loads(r.text)		
+		if r.status_code != 200:
+			self._handle_http_error(r.status_code, r.text)
+
+		msg = json.loads(r.text)
+
+		return msg
 
 	def _stream_msg_handler(self, ws, msg):
 		self._message_queue.append(json.loads(zlib.decompress(msg)))
@@ -51,7 +69,7 @@ class Unida:
 					'subscriptions': subscriptions,
 					'format': 'avro'
 				})
-			except:
+			except json.decoder.JSONDecodeError:
 				time.sleep(1)
 				continue
 
@@ -62,6 +80,10 @@ class Unida:
 			self._ws_handler(path)
 
 			time.sleep(1)
+
+	@property
+	def api_limit(self):
+		return self._get('/user/api-limit/')
 
 	def subscribe(self, subscriptions):
 		t = Thread(target=self._keep_session, args=(subscriptions, ))
