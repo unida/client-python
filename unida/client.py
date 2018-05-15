@@ -51,8 +51,6 @@ class Unida:
 		if r.status_code != 200:
 			self._handle_http_error(r.status_code, r.text)
 
-		print(r.text)
-
 		msg = json.loads(r.text)
 
 		return msg
@@ -108,6 +106,9 @@ class Unida:
 		return self._get('/current/{}/{}/{}/'.format(exchange, 'book', symbol.replace('/', '_')))
 
 	def history(self, entity, exchange, symbol, since, to):
+		if since < 1000000000000 or to < 1000000000000:
+			raise Exception("Timestamp should by in milliseconds.")
+
 		if entity == 'book':
 			entity = 'books'
 
