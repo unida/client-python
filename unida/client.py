@@ -51,6 +51,8 @@ class Unida:
 		if r.status_code != 200:
 			self._handle_http_error(r.status_code, r.text)
 
+		print(r.text)
+
 		msg = json.loads(r.text)
 
 		return msg
@@ -110,11 +112,20 @@ class Unida:
 			entity = 'books'
 
 		symbol = symbol.replace('/', '_')
-		history = self._get('/history/{}/{}/{}/{}/{}/'.format(entity, exchange, symbol, since, to))
+		history = self._get('/history/{}/{}/{}/{}/{}/'.format(entity, exchange, symbol, int(since), int(to)))
 
-		if entity:
+		if entity == 'books':
 			for i in range(len(history)):
 				history[i]['asks'] = zlib.decompress(b64decode(history[i]['asks']))
 				history[i]['bids'] = zlib.decompress(b64decode(history[i]['bids']))
 
 		return history
+
+	def history_book(self, exchange, symbol, since, to):
+		return self.history('books', exchange, symbol, since, to)
+
+	def history_trades(self, exchange, symbol, since, to):
+		return self.history('trades', exchange, symbol, since, to)
+
+
+
