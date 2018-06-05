@@ -10,6 +10,9 @@ from threading import Thread
 class RateLimitExceeded(Exception):
 	pass
 
+class InvalidAPIKey(Exception):
+	pass
+
 class Unida:
 	def __init__(self, api_key):
 		host = 'data.unida.io'
@@ -24,8 +27,11 @@ class Unida:
 	def _handle_http_error(self, code, msg):
 		if code == 401:
 			msg = json.loads(msg)
+
 			if 'Rate limit reached' in msg['error']:
 				raise RateLimitExceeded(msg['error'])
+			elif 'Invalid api key' in msg['error']:
+				raise InvalidAPIKey(msg['error'])
 			else:
 				raise Exception('Unknown error occured.')
 
@@ -117,8 +123,8 @@ class Unida:
 
 		if entity == 'books':
 			for i in range(len(history)):
-				history[i]['asks'] = zlib.decompress(b64decode(history[i]['asks']))
-				history[i]['bids'] = zlib.decompress(b64decode(history[i]['bids']))
+				history[i]['asks'] = json.loads(zlib.decompress(b64decode(history[i]['asks'])).decode())
+				history[i]['bids'] = json.loads(zlib.decompress(b64decode(history[i]['bids'])).decode())
 
 		return history
 
