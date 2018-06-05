@@ -33,7 +33,7 @@ class Unida:
 			elif 'Invalid api key' in msg['error']:
 				raise InvalidAPIKey(msg['error'])
 			else:
-				raise Exception('Unknown error occured.')
+				raise Exception('Unknown error occured.\n' + msg['error'])
 
 	def _post(self, path, payload):
 		# payload['api_key'] = self._api_key
@@ -62,7 +62,12 @@ class Unida:
 		return msg
 
 	def _stream_msg_handler(self, ws, msg):
-		self._message_queue.append(json.loads(zlib.decompress(msg)))
+		try:
+			msg = zlib.decompress(msg)
+		except:
+			msg = msg
+
+		self._message_queue.append(json.loads(msg))
 
 	def _ws_handler(self, path):
 		ws = websocket.WebSocketApp(self._ws_host + path, on_message=self._stream_msg_handler)
